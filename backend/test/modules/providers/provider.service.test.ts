@@ -27,9 +27,9 @@ describe("ProviderService", () => {
     const service = ProviderService.getInstance();
     const quotes = await service.getQuotes(["RELIANCE", "TCS", "NIFTY50"]);
     expect(quotes.length).toBe(3);
-    expect(quotes[0].symbol).toBe("RELIANCE");
-    expect(quotes[0].price).toBeGreaterThan(0);
-    expect(quotes[0].timestamp).toBeGreaterThan(0);
+    expect(quotes[0]!.symbol).toBe("RELIANCE");
+    expect(quotes[0]!.price).toBeGreaterThan(0);
+    expect(quotes[0]!.timestamp).toBeGreaterThan(0);
   });
 
   it("generates realistic order book snapshot with bids and asks ladder", async () => {
@@ -38,7 +38,7 @@ describe("ProviderService", () => {
     expect(book.symbol).toBe("RELIANCE");
     expect(book.bids.length).toBe(10);
     expect(book.asks.length).toBe(10);
-    expect(book.bids[0].price).toBeLessThan(book.asks[0].price);
+    expect(book.bids[0]!.price).toBeLessThan(book.asks[0]!.price);
     expect(book.spread).toBeGreaterThan(0);
     expect(book.microprice).toBeGreaterThan(0);
   });
@@ -47,9 +47,9 @@ describe("ProviderService", () => {
     const service = ProviderService.getInstance();
     const trades = await service.getRecentTrades("RELIANCE", 5);
     expect(trades.length).toBe(5);
-    expect(trades[0].symbol).toBe("RELIANCE");
-    expect(trades[0].price).toBeGreaterThan(0);
-    expect(["BUY", "SELL"]).toContain(trades[0].side);
+    expect(trades[0]!.symbol).toBe("RELIANCE");
+    expect(trades[0]!.price).toBeGreaterThan(0);
+    expect(["BUY", "SELL"]).toContain(trades[0]!.side);
   });
 
   it("allows testing and switching providers", async () => {

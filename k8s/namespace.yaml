@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quantpulse
+  labels:
+    app.kubernetes.io/name: quantpulse
+    app.kubernetes.io/part-of: quantpulse-platform

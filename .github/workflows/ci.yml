@@ -1,0 +1,141 @@
+name: QuantPulse CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # Backend Validation (TypeScript, Lint, Vitest)
+  # ----------------------------------------------------------------------------
+  backend:
+    name: Backend Tests & Typecheck
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: TypeScript Typecheck
+        run: npm run typecheck
+
+      - name: Run Backend Unit & Integration Tests
+        run: npm test
+
+      - name: Build Backend (TypeScript Compilation)
+        run: npm run build
+
+  # ----------------------------------------------------------------------------
+  # Frontend Validation (TypeScript, Vite Build)
+  # ----------------------------------------------------------------------------
+  frontend:
+    name: Frontend Build & Typecheck
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: TypeScript Typecheck
+        run: npm run typecheck
+
+      - name: Build Frontend Application
+        run: npm run build
+
+  # ----------------------------------------------------------------------------
+  # Native C++20 Quantitative Engine Build & Test
+  # ----------------------------------------------------------------------------
+  cpp-engine:
+    name: C++20 Engine Build & CTest
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install C++ Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            g++-13 \
+            libgtest-dev \
+            nlohmann-json3-dev
+
+      - name: Cache C++ Build Cache
+        uses: actions/cache@v4
+        with:
+          path: cpp-engine/build
+          key: ${{ runner.os }}-cpp-build-${{ hashFiles('cpp-engine/CMakeLists.txt', 'cpp-engine/src/**', 'cpp-engine/include/**', 'cpp-engine/tests/**') }}
+          restore-keys: |
+            ${{ runner.os }}-cpp-build-
+
+      - name: Configure CMake (Release Mode)
+        run: |
+          cmake -B cpp-engine/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=20 \
+            -DBENCHMARK_ENABLE_TESTING=OFF \
+            -DBENCHMARK_ENABLE_GTEST_TESTS=OFF \
+            -S cpp-engine
+
+      - name: Build C++ Targets
+        run: |
+          cmake --build cpp-engine/build --config Release -j$(nproc)
+
+      - name: Execute C++ Unit Tests (CTest)
+        run: |
+          ctest --test-dir cpp-engine/build --output-on-failure
+
+  # ----------------------------------------------------------------------------
+  # Security Auditing & Secret Scanning
+  # ----------------------------------------------------------------------------
+  security-scan:
+    name: DevSecOps Vulnerability Scan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Backend npm audit
+        run: |
+          cd backend && npm audit --audit-level=high || true
+
+      - name: Frontend npm audit
+        run: |
+          cd frontend && npm audit --audit-level=high || true

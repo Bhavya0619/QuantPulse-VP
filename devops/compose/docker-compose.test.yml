@@ -1,0 +1,55 @@
+services:
+  mongodb-test:
+    image: mongo:7.0
+    container_name: quantpulse-mongodb-test
+    environment:
+      - MONGO_INITDB_DATABASE=quantpulse_test
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - quantpulse-test-network
+
+  redis-test:
+    image: redis:7.2-alpine
+    container_name: quantpulse-redis-test
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - quantpulse-test-network
+
+  cpp-engine-test:
+    build:
+      context: ../..
+      dockerfile: devops/docker/cpp-engine/Dockerfile
+    container_name: quantpulse-cpp-engine-test
+    networks:
+      - quantpulse-test-network
+
+  backend-test:
+    build:
+      context: ../..
+      dockerfile: devops/docker/backend/Dockerfile
+    container_name: quantpulse-backend-test
+    environment:
+      - NODE_ENV=test
+      - MONGODB_URI=mongodb://mongodb-test:27017
+      - MONGODB_DATABASE=quantpulse_test
+      - REDIS_URL=redis://redis-test:6379
+      - QUANTPULSE_ENGINE_PATH=/usr/local/bin/quantpulse_cli
+    depends_on:
+      mongodb-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    networks:
+      - quantpulse-test-network
+
+networks:
+  quantpulse-test-network:
+    driver: bridge

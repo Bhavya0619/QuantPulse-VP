@@ -15,6 +15,6 @@ describe("LiveMarketService", () => {
   it("fetches recent trades from active provider", async () => {
     const trades = await service.getRecentTrades("RELIANCE", 10);
     expect(trades.length).toBe(10);
-    expect(trades[0].symbol).toBe("RELIANCE");
+    expect(trades[0]!.symbol).toBe("RELIANCE");
   });
 });

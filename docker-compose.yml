@@ -1,8 +1,102 @@
+# QuantPulse Root Docker Compose Configuration
+# For detailed development and production configs, see devops/compose/
+
 services:
+  mongodb:
+    image: mongo:7.0
+    container_name: quantpulse-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=quantpulse
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quantpulse-network
 
-  # MongoDB will be added when the persistence layer is implemented.
+  redis:
+    image: redis:7.2-alpine
+    container_name: quantpulse-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quantpulse-network
 
-  # Redis will be added when caching/job requirements are implemented.
+  cpp-engine:
+    build:
+      context: .
+      dockerfile: devops/docker/cpp-engine/Dockerfile
+    container_name: quantpulse-cpp-engine
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      - PORT=9000
+    networks:
+      - quantpulse-network
 
-  # Node.js backend and C++ engine will be containerized after their
-  # local implementations are stable.
+  backend:
+    build:
+      context: .
+      dockerfile: devops/docker/backend/Dockerfile
+    container_name: quantpulse-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=development
+      - PORT=8000
+      - CORS_ORIGIN=http://localhost:5173
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=quantpulse
+      - REDIS_URL=redis://redis:6379
+      - CPP_ENGINE_URL=http://cpp-engine:9000
+      - QUANTPULSE_ENGINE_PATH=/usr/local/bin/quantpulse_cli
+      - MARKET_DATA_PROVIDER=simulated
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - quantpulse-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: devops/docker/frontend/Dockerfile
+      args:
+        - VITE_API_BASE_URL=http://localhost:8000
+        - VITE_BACKEND_URL=http://localhost:8000
+    container_name: quantpulse-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - quantpulse-network
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  quantpulse-network:
+    driver: bridge

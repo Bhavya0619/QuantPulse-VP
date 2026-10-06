@@ -52,7 +52,17 @@ export interface MarketAnalyticsResult {
   amihudIlliquidity?: number;
   kyleLambda?: number;
   rollSpread?: number;
-  corwinSchultzSpread?: number;
+  microprice?: number;
+  zScore?: number;
+  squeezeStatus?: string;
+  signals?: MarketSignalItem[];
+}
+
+export interface MarketSignalItem {
+  type: string;
+  action: "BUY" | "SELL" | "HOLD" | "ALERT";
+  confidence: number;
+  description: string;
 }
 
 export interface MarketAnalysisResponse {

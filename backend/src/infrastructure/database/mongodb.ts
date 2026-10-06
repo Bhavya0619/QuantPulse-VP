@@ -45,6 +45,23 @@ export const disconnectMongoDB = async (): Promise<void> => {
     console.log("MongoDB disconnected");
 };
 
+export const checkMongoHealth = async (): Promise<{ status: "connected" | "disconnected" | "error"; latencyMs?: number; error?: string }> => {
+    if (!database) {
+        return { status: "disconnected" };
+    }
+    try {
+        const start = Date.now();
+        await database.command({ ping: 1 });
+        const latencyMs = Date.now() - start;
+        return { status: "connected", latencyMs };
+    } catch (err) {
+        return {
+            status: "error",
+            error: err instanceof Error ? err.message : String(err),
+        };
+    }
+};
+
 export const ensureMongoIndexes = async (): Promise<void> => {
     const db = getMongoDB();
 
@@ -68,4 +85,41 @@ export const ensureMongoIndexes = async (): Promise<void> => {
             unique: true,
         },
     );
+};
+
+export const ensureDefaultDatasetSeeded = async (): Promise<void> => {
+    const db = getMongoDB();
+    try {
+        const count = await db.collection("datasets").countDocuments();
+        if (count === 0) {
+            const { SAMPLE_DATASET, SAMPLE_BARS } = await import("./sample-data.js");
+            console.log("Seeding default RELIANCE market dataset into MongoDB...");
+            await db.collection("datasets").insertOne({
+                id: SAMPLE_DATASET.id,
+                name: SAMPLE_DATASET.name,
+                symbol: SAMPLE_DATASET.symbol,
+                timeframe: SAMPLE_DATASET.timeframe,
+                source: SAMPLE_DATASET.source,
+                description: SAMPLE_DATASET.description,
+                createdAt: SAMPLE_DATASET.createdAt,
+                updatedAt: SAMPLE_DATASET.updatedAt,
+            });
+
+            await db.collection("market_bars").insertMany(
+                SAMPLE_BARS.map((bar) => ({
+                    datasetId: bar.datasetId,
+                    symbol: bar.symbol,
+                    timestamp: bar.timestamp,
+                    open: bar.open,
+                    high: bar.high,
+                    low: bar.low,
+                    close: bar.close,
+                    volume: bar.volume,
+                })),
+            );
+            console.log("Default market dataset seeded successfully (10 bars).");
+        }
+    } catch (err) {
+        console.warn("Could not seed default dataset (non-fatal):", err);
+    }
 };

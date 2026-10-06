@@ -125,12 +125,12 @@ export class ExternalMarketDataProvider implements IMarketDataProvider {
           };
         }
 
-        const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=IBM&apikey=${config.apiKey}`;
         logger.info(
           "ALPHA_VANTAGE:HTTP_REQ",
-          `GET ${url.replace(config.apiKey, "••••••••")}`,
+          "GET https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=IBM&apikey=[REDACTED]",
         );
 
+        const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=IBM&apikey=${encodeURIComponent(config.apiKey)}`;
         const res = await axios.get<Record<string, any>>(url, {
           timeout: 6000,
         });
@@ -208,11 +208,11 @@ export class ExternalMarketDataProvider implements IMarketDataProvider {
             latencyMs: 0,
           };
         }
-        const url = `https://api.polygon.io/v2/aggs/ticker/AAPL/prev?apiKey=${config.apiKey}`;
         logger.info(
           "POLYGON:HTTP_REQ",
-          `GET ${url.replace(config.apiKey, "••••••••")}`,
+          "GET https://api.polygon.io/v2/aggs/ticker/AAPL/prev?apiKey=[REDACTED]",
         );
+        const url = `https://api.polygon.io/v2/aggs/ticker/AAPL/prev?apiKey=${encodeURIComponent(config.apiKey)}`;
         const res = await axios.get(url, { timeout: 4000 });
         const latencyMs = Date.now() - startTime;
         if (res.status === 200) {

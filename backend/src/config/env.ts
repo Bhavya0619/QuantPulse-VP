@@ -23,6 +23,11 @@ export const config = {
       ? "../cpp-engine/build-release/Release/quantpulse_cli.exe"
       : "../cpp-engine/build-release/quantpulse_cli"),
 
+  cppEngineUrl:
+    process.env.NODE_ENV === "test" || process.env.VITEST
+      ? undefined
+      : process.env.CPP_ENGINE_URL || "http://127.0.0.1:9000",
+
   mongodb: {
     uri: process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017",
     databaseName: process.env.MONGODB_DATABASE ?? "quantpulse",

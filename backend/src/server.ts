@@ -6,7 +6,9 @@ import {
     connectMongoDB,
     disconnectMongoDB,
     ensureMongoIndexes,
+    ensureDefaultDatasetSeeded,
 } from "./infrastructure/database/mongodb.js";
+import { checkCppEngineHealth } from "./infrastructure/cpp-engine/QuantEngineClient.js";
 
 const startServer = async (): Promise<void> => {
     try {
@@ -14,12 +16,39 @@ const startServer = async (): Promise<void> => {
 
         await ensureMongoIndexes();
 
+        await ensureDefaultDatasetSeeded();
+
         const app = createApp();
 
-        const server = app.listen(config.port, () => {
+        const server = app.listen(config.port, async () => {
             console.log(
                 `QuantPulse backend running on port ${config.port}`,
             );
+
+            try {
+                const cppHealth = await checkCppEngineHealth();
+                if (cppHealth.status === "available") {
+                    console.log(
+                        `🚀 [CPP-ENGINE] Connected to Dragon C++ Quantitative Engine through port ${cppHealth.port ?? 9000} (${cppHealth.path})`,
+                    );
+                    console.log(
+                        `   Framework: ${cppHealth.framework ?? "Dragon/Drogon C++20 Engine"} | Status: ONLINE`,
+                    );
+                } else {
+                    console.log(
+                        `ℹ️ [CPP-ENGINE] C++ Engine at ${config.cppEngineUrl ?? "local"} status: ${cppHealth.status}`,
+                    );
+                    if (config.cppEngineUrl) {
+                        console.log(
+                            `   Note: To run Dragon C++ HTTP server on port 9000: ./cpp-engine/build/quantpulse_server --port 9000`,
+                        );
+                    }
+                }
+            } catch (err) {
+                console.log(
+                    `⚠️ [CPP-ENGINE] Connection check error: ${err instanceof Error ? err.message : String(err)}`,
+                );
+            }
         });
 
         const shutdown = async (signal: string): Promise<void> => {

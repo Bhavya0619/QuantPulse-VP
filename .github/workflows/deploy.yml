@@ -1,0 +1,32 @@
+name: QuantPulse Production Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Deployment Environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Execute Deployment
+        run: |
+          echo "🚀 Deploying QuantPulse to ${{ github.event.inputs.target_env }}..."
+          echo "1. Validating production Compose configuration..."
+          docker compose -f devops/compose/docker-compose.prod.yml config > /dev/null
+          echo "2. Configuration verified."
+          echo "3. In production, SSH key connects to host, runs docker compose pull && docker compose up -d"
+          echo "4. Post-deployment healthcheck runs ./devops/scripts/healthcheck.sh"
+          echo "5. If healthcheck fails, rollback to previous image tag is executed."

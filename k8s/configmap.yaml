@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quantpulse-config
+  namespace: quantpulse
+data:
+  NODE_ENV: "production"
+  PORT: "8000"
+  CORS_ORIGIN: "*"
+  LOG_FORMAT: "json"
+  MONGODB_URI: "mongodb://mongodb.quantpulse.svc.cluster.local:27017"
+  MONGODB_DATABASE: "quantpulse"
+  REDIS_URL: "redis://redis.quantpulse.svc.cluster.local:6379"
+  QUANTPULSE_ENGINE_PATH: "/usr/local/bin/quantpulse_cli"
+  MARKET_DATA_PROVIDER: "simulated"

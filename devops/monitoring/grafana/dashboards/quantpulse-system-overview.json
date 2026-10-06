@@ -1,0 +1,102 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "System Overview & Traffic",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "HTTP Request Throughput (Req/s)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(quantpulse_http_requests_total[1m])",
+          "legendFormat": "{{method}} {{route}} ({{status}})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "HTTP Average Request Latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(quantpulse_http_request_duration_seconds_sum[1m]) / rate(quantpulse_http_request_duration_seconds_count[1m])",
+          "legendFormat": "{{method}} {{route}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "id": 101,
+      "title": "C++ Engine Quantitative Pipeline",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "ops" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "C++ Engine Invocations / sec",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(quantpulse_cpp_executions_total[1m])",
+          "legendFormat": "{{command}} ({{status}})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "C++ Engine Processing Duration",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(quantpulse_cpp_execution_duration_seconds_sum[1m]) / rate(quantpulse_cpp_execution_duration_seconds_count[1m])",
+          "legendFormat": "{{command}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["quantpulse", "system"],
+  "time": { "from": "now-30m", "to": "now" },
+  "title": "QuantPulse System Overview",
+  "uid": "quantpulse-system-overview"
+}
