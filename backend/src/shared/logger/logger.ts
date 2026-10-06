@@ -109,19 +109,21 @@ class Logger {
 
       const jsonStr = JSON.stringify(logEntry);
       if (level === "error") {
-        console.error(jsonStr);
+        console.error("%s", jsonStr);
       } else if (level === "warn") {
-        console.warn(jsonStr);
+        console.warn("%s", jsonStr);
       } else if (level === "debug") {
-        console.debug(jsonStr);
+        console.debug("%s", jsonStr);
       } else {
-        console.info(jsonStr);
+        console.info("%s", jsonStr);
       }
       return;
     }
 
     // Pretty Terminal Mode
     const ts = this.colorize(this.formatTimestamp(), "90");
+    const tagColor = level === "debug" ? "36" : level === "info" ? "32" : level === "warn" ? "33" : "31";
+    const tagStr = this.formatTag(tag, tagColor);
     const safePayload = payload
       ? typeof payload === "object"
         ? sanitizeObject(payload as Record<string, unknown>)
@@ -131,19 +133,27 @@ class Logger {
       : undefined;
 
     if (level === "debug") {
-      const tagStr = this.formatTag(tag, "36");
       const levelStr = this.formatTag("DEBUG", "35");
-      console.debug(`${ts} ${levelStr} ${tagStr} ${safeMessage}`, safePayload ? JSON.stringify(safePayload) : "");
+      if (safePayload) {
+        console.debug("%s %s %s %s %s", ts, levelStr, tagStr, safeMessage, JSON.stringify(safePayload));
+      } else {
+        console.debug("%s %s %s %s", ts, levelStr, tagStr, safeMessage);
+      }
     } else if (level === "info") {
-      const tagStr = this.formatTag(tag, "32");
       const levelStr = this.formatTag("INFO", "34");
-      console.info(`${ts} ${levelStr} ${tagStr} ${safeMessage}`, safePayload ? JSON.stringify(safePayload) : "");
+      if (safePayload) {
+        console.info("%s %s %s %s %s", ts, levelStr, tagStr, safeMessage, JSON.stringify(safePayload));
+      } else {
+        console.info("%s %s %s %s", ts, levelStr, tagStr, safeMessage);
+      }
     } else if (level === "warn") {
-      const tagStr = this.formatTag(tag, "33");
       const levelStr = this.formatTag("WARN", "33");
-      console.warn(`${ts} ${levelStr} ${tagStr} ${safeMessage}`, safePayload ? JSON.stringify(safePayload) : "");
+      if (safePayload) {
+        console.warn("%s %s %s %s %s", ts, levelStr, tagStr, safeMessage, JSON.stringify(safePayload));
+      } else {
+        console.warn("%s %s %s %s", ts, levelStr, tagStr, safeMessage);
+      }
     } else {
-      const tagStr = this.formatTag(tag, "31");
       const levelStr = this.formatTag("ERROR", "41;97");
       let errDetails = "";
       if (payload instanceof Error) {
@@ -151,7 +161,7 @@ class Logger {
       } else if (safePayload) {
         errDetails = ` ${JSON.stringify(safePayload)}`;
       }
-      console.error(`${ts} ${levelStr} ${tagStr} ${safeMessage}${errDetails}`);
+      console.error("%s %s %s %s%s", ts, levelStr, tagStr, safeMessage, errDetails);
     }
   }
 
@@ -189,7 +199,7 @@ class Logger {
     const methodStr = this.colorize(method.padEnd(6), "33;1");
     const queryStr = query && Object.keys(query).length > 0 ? ` ?${new URLSearchParams(query as any).toString()}` : "";
     const bodyStr = bodySummary ? ` | body: ${bodySummary}` : "";
-    console.info(`${ts} ${tagStr} ${methodStr} ${path}${queryStr}${bodyStr}`);
+    console.info("%s %s %s %s%s%s", ts, tagStr, methodStr, path, queryStr, bodyStr);
   }
 
   // HTTP Response Logger
@@ -213,7 +223,7 @@ class Logger {
     const statusStr = this.colorize(String(status), `${statusColor};1`);
     const durationStr = this.colorize(`${durationMs.toFixed(1)}ms`, "36");
     const bytesStr = bytesSent !== undefined ? ` (${(bytesSent / 1024).toFixed(1)} KB)` : "";
-    console.info(`${ts} ${tagStr} ${statusStr} ${method} ${path} in ${durationStr}${bytesStr}`);
+    console.info("%s %s %s %s %s in %s%s", ts, tagStr, statusStr, method, path, durationStr, bytesStr);
   }
 
   // C++ Engine Logger
@@ -228,7 +238,7 @@ class Logger {
     const info = details.symbol
       ? `symbol: ${details.symbol} (${details.barCount ?? 0} bars)`
       : details.path || "";
-    console.info(`${ts} ${tagStr} ⚙️ Executing [quantpulse_cli ${command}] -> ${info}`);
+    console.info("%s %s ⚙️ Executing [quantpulse_cli %s] -> %s", ts, tagStr, command, info);
   }
 
   public cppResponse(command: string, durationMs: number, details: { symbol?: string; bytesReceived?: number; observationCount?: number }): void {
@@ -247,7 +257,7 @@ class Logger {
     const durationStr = this.colorize(`${durationMs.toFixed(2)}ms`, "36");
     const obs = details.observationCount !== undefined ? ` | observations: ${details.observationCount}` : "";
     const size = details.bytesReceived !== undefined ? ` | size: ${(details.bytesReceived / 1024).toFixed(1)} KB` : "";
-    console.info(`${ts} ${tagStr} ✅ Completed [${command}] in ${durationStr}${obs}${size}`);
+    console.info("%s %s ✅ Completed [%s] in %s%s%s", ts, tagStr, command, durationStr, obs, size);
   }
 
   public cppError(command: string, error: unknown, durationMs?: number): void {
@@ -264,7 +274,7 @@ class Logger {
     const tagStr = this.formatTag("CPP-ENGINE:ERR", "31;1");
     const durationStr = durationMs !== undefined ? ` after ${durationMs.toFixed(2)}ms` : "";
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`${ts} ${tagStr} ❌ Failed [${command}]${durationStr}: ${msg}`);
+    console.error("%s %s ❌ Failed [%s]%s: %s", ts, tagStr, command, durationStr, msg);
   }
 }
 
