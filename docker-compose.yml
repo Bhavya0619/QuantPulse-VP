@@ -36,6 +36,19 @@ services:
     networks:
       - quantpulse-network
 
+  cpp-engine:
+    build:
+      context: .
+      dockerfile: devops/docker/cpp-engine/Dockerfile
+    container_name: quantpulse-cpp-engine
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      - PORT=9000
+    networks:
+      - quantpulse-network
+
   backend:
     build:
       context: .
@@ -51,6 +64,7 @@ services:
       - MONGODB_URI=mongodb://mongodb:27017
       - MONGODB_DATABASE=quantpulse
       - REDIS_URL=redis://redis:6379
+      - CPP_ENGINE_URL=http://cpp-engine:9000
       - QUANTPULSE_ENGINE_PATH=/usr/local/bin/quantpulse_cli
       - MARKET_DATA_PROVIDER=simulated
     depends_on:

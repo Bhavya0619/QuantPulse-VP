@@ -64,11 +64,11 @@ export function MarketDashboard({
       const response = await fetchDatasetAnalytics(datasetId);
       setData(response.data);
     } catch (err) {
-      setError(
+      const errMsg =
         err instanceof Error
           ? err.message
-          : "Unable to load market analysis for dataset.",
-      );
+          : "Unable to load market analysis for dataset.";
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -280,18 +280,36 @@ export function MarketDashboard({
 
         {error && (
           <Card className="border-destructive/40 bg-destructive/5 shadow-none">
-            <CardContent className="p-4 text-sm text-destructive flex items-center justify-between">
-              <span>{error}</span>
-              {onNavigateToDataLab && (
+            <CardContent className="p-4 text-sm text-destructive flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex flex-col gap-1">
+                <span className="font-medium">{error}</span>
+                <span className="text-xs text-muted-foreground">
+                  The selected dataset could not be processed. You can switch to the built-in sample or import clean data.
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={onNavigateToDataLab}
-                  className="text-xs"
+                  onClick={() => {
+                    setSelectedDatasetId("sample");
+                    void loadSampleAnalysis();
+                  }}
+                  className="text-xs border-primary/30 hover:bg-primary/20 hover:text-white"
                 >
-                  Go to Data Lab
+                  Load Sample Dataset
                 </Button>
-              )}
+                {onNavigateToDataLab && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onNavigateToDataLab}
+                    className="text-xs"
+                  >
+                    Go to Data Lab
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}

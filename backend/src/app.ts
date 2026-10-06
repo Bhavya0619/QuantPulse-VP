@@ -37,6 +37,7 @@ const createApp = () => {
 
   // Health and Observability
   app.use("/health", createHealthRoutes());
+  app.use("/api/health", createHealthRoutes());
   app.get("/metrics", (req, res) => HealthController.getMetrics(req, res));
 
   app.use("/api/market", marketRoutes);

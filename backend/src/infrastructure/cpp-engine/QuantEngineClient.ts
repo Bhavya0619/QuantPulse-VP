@@ -135,18 +135,43 @@ export function validateMarketAnalyticsResult(
   };
 }
 
-export async function checkCppEngineHealth(): Promise<{ status: "available" | "missing" | "error"; path: string; error?: string }> {
+export async function checkCppEngineHealth(): Promise<{
+  status: "available" | "missing" | "error";
+  path: string;
+  error?: string;
+  port?: number;
+  framework?: string;
+}> {
   // If remote HTTP URL is configured, perform HTTP healthcheck
   if (config.cppEngineUrl) {
     try {
-      const response = await axios.get<{ status?: string }>(`${config.cppEngineUrl.replace(/\/+$/, "")}/health`, {
+      const response = await axios.get<{
+        status?: string;
+        framework?: string;
+        port?: number;
+        service?: string;
+      }>(`${config.cppEngineUrl.replace(/\/+$/, "")}/health`, {
         timeout: 3000,
       });
       if (response.status === 200) {
-        return { status: "available", path: config.cppEngineUrl };
+        return {
+          status: "available",
+          path: config.cppEngineUrl,
+          port: response.data.port ?? 9000,
+          framework: response.data.framework ?? "Dragon/Drogon C++20 Engine",
+        };
       }
       return { status: "error", path: config.cppEngineUrl, error: `HTTP status ${response.status}` };
     } catch (err) {
+      // Check if local binary exists as fallback
+      const exists = fs.existsSync(config.cppEnginePath);
+      if (exists) {
+        return {
+          status: "available",
+          path: config.cppEnginePath,
+          error: `HTTP connection offline (${err instanceof Error ? err.message : String(err)}), CLI available`,
+        };
+      }
       return {
         status: "error",
         path: config.cppEngineUrl,
@@ -224,7 +249,22 @@ function parseMarketCsv(content: string): { symbol: string; bars: MarketBar[] } 
     const line = lines[i]!.trim();
     if (!line) continue;
     const parts = line.split(",").map((c) => c.trim());
-    const rawTs = Number(parts[tsIdx]);
+    let timestamp: Date | null = null;
+    const rawTsStr = parts[tsIdx];
+    if (rawTsStr) {
+      const numTs = Number(rawTsStr);
+      if (!Number.isNaN(numTs) && numTs > 0) {
+        timestamp = new Date(numTs > 1e11 ? numTs : numTs * 1000);
+      } else {
+        const parsed = new Date(rawTsStr);
+        if (!Number.isNaN(parsed.getTime())) {
+          timestamp = parsed;
+        }
+      }
+    }
+
+    if (!timestamp || Number.isNaN(timestamp.getTime())) continue;
+
     const sym = symIdx >= 0 && parts[symIdx] ? parts[symIdx]!.toUpperCase() : detectedSymbol;
     detectedSymbol = sym;
     const open = Number(parts[oIdx]);
@@ -233,17 +273,20 @@ function parseMarketCsv(content: string): { symbol: string; bars: MarketBar[] } 
     const close = Number(parts[cIdx]);
     const volume = Number(parts[vIdx]);
 
-    if (!Number.isFinite(open) || !Number.isFinite(close)) continue;
+    if (!Number.isFinite(open) || !Number.isFinite(close) || open <= 0 || close <= 0) continue;
+
+    const actualHigh = Number.isFinite(high) && high >= Math.max(open, close) ? high : Math.max(open, close);
+    const actualLow = Number.isFinite(low) && low > 0 && low <= Math.min(open, close) ? low : Math.min(open, close);
 
     bars.push({
       datasetId: "sample",
       symbol: sym,
-      timestamp: new Date(rawTs > 1e11 ? rawTs : rawTs * 1000),
+      timestamp,
       open,
-      high,
-      low,
+      high: actualHigh,
+      low: actualLow,
       close,
-      volume: Number.isFinite(volume) ? volume : 0,
+      volume: Number.isFinite(volume) && volume >= 0 ? volume : 0,
     });
   }
 
@@ -440,14 +483,26 @@ export async function runMarketAnalysis(
 
   const request: MarketAnalysisRequest = {
     symbol: symbol.toUpperCase(),
-    bars: bars.map((bar) => ({
-      timestamp: bar.timestamp.getTime(),
-      open: bar.open,
-      high: bar.high,
-      low: bar.low,
-      close: bar.close,
-      volume: bar.volume,
-    })),
+    bars: bars.map((bar) => {
+      let tsMs: number;
+      if (bar.timestamp instanceof Date) {
+        tsMs = bar.timestamp.getTime();
+      } else if (typeof bar.timestamp === "number") {
+        tsMs = bar.timestamp < 1e11 ? bar.timestamp * 1000 : bar.timestamp;
+      } else {
+        const parsed = new Date(bar.timestamp);
+        tsMs = Number.isNaN(parsed.getTime()) ? Date.now() : parsed.getTime();
+      }
+
+      return {
+        timestamp: tsMs,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        volume: bar.volume,
+      };
+    }),
   };
 
   const startTime = Date.now();
@@ -475,8 +530,20 @@ export async function runMarketAnalysis(
     } catch (error) {
       const duration = Date.now() - startTime;
       logger.cppError("HTTP:analyze", error, duration);
-      throw new Error(
-        `C++ HTTP engine failed: ${error instanceof Error ? error.message : String(error)}`,
+
+      const isConnectionRefused =
+        axios.isAxiosError(error) &&
+        (error.code === "ECONNREFUSED" || error.code === "ENOTFOUND" || error.code === "ETIMEDOUT");
+
+      if (!isConnectionRefused) {
+        throw new Error(
+          `C++ Dragon HTTP engine failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
+      logger.info(
+        "CPP-ENGINE",
+        `Dragon HTTP server port 9000 unreachable (${error.code}). Falling back to local CLI binary.`,
       );
     }
   }

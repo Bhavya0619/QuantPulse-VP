@@ -6,25 +6,36 @@ interface LogPayload {
   [key: string]: unknown;
 }
 
-const SENSITIVE_KEYS = new Set([
-  "password",
-  "secret",
-  "apikey",
-  "api_key",
-  "token",
-  "jwt",
-  "authorization",
-  "auth",
-  "cookie",
-]);
+const SENSITIVE_KEY_PATTERNS = [
+  /password/i,
+  /secret/i,
+  /apikey/i,
+  /api_key/i,
+  /token/i,
+  /jwt/i,
+  /authorization/i,
+  /auth/i,
+  /cookie/i,
+];
+
+function sanitizeString(str: string): string {
+  // Scrub query params like ?apikey=... or &api_key=... or token=...
+  return str.replace(
+    /((?:apikey|api_key|token|secret|password|access_token)=)([^&\s]+)/gi,
+    "$1[REDACTED]"
+  );
+}
 
 function sanitizeValue(key: string, value: unknown): unknown {
-  if (typeof key === "string" && SENSITIVE_KEYS.has(key.toLowerCase())) {
+  if (typeof key === "string" && SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(key))) {
     return "[REDACTED]";
+  }
+  if (typeof value === "string") {
+    return sanitizeString(value);
   }
   if (typeof value === "object" && value !== null) {
     if (Array.isArray(value)) {
-      return value.map((item) => (typeof item === "object" && item !== null ? sanitizeObject(item as Record<string, unknown>) : item));
+      return value.map((item) => (typeof item === "object" && item !== null ? sanitizeObject(item as Record<string, unknown>) : typeof item === "string" ? sanitizeString(item) : item));
     }
     return sanitizeObject(value as Record<string, unknown>);
   }
@@ -69,24 +80,28 @@ class Logger {
   private emit(level: LogLevel, tag: string, message: string, payload?: unknown): void {
     if (process.env.NODE_ENV === "test" && !process.env.DEBUG) return;
 
+    const safeMessage = typeof message === "string" ? sanitizeString(message) : message;
+
     if (this.isJsonMode()) {
       const logEntry: Record<string, unknown> = {
         timestamp: this.formatTimestamp(),
         level,
         service: "quantpulse-backend",
         tag,
-        message,
+        message: safeMessage,
       };
 
       if (payload) {
         if (payload instanceof Error) {
           logEntry.error = {
             name: payload.name,
-            message: payload.message,
-            stack: payload.stack,
+            message: sanitizeString(payload.message),
+            stack: payload.stack ? sanitizeString(payload.stack) : undefined,
           };
         } else if (typeof payload === "object") {
           logEntry.payload = sanitizeObject(payload as Record<string, unknown>);
+        } else if (typeof payload === "string") {
+          logEntry.payload = sanitizeString(payload);
         } else {
           logEntry.payload = payload;
         }
@@ -107,28 +122,36 @@ class Logger {
 
     // Pretty Terminal Mode
     const ts = this.colorize(this.formatTimestamp(), "90");
+    const safePayload = payload
+      ? typeof payload === "object"
+        ? sanitizeObject(payload as Record<string, unknown>)
+        : typeof payload === "string"
+        ? sanitizeString(payload)
+        : payload
+      : undefined;
+
     if (level === "debug") {
       const tagStr = this.formatTag(tag, "36");
       const levelStr = this.formatTag("DEBUG", "35");
-      console.debug(`${ts} ${levelStr} ${tagStr} ${message}`, payload ? JSON.stringify(payload) : "");
+      console.debug(`${ts} ${levelStr} ${tagStr} ${safeMessage}`, safePayload ? JSON.stringify(safePayload) : "");
     } else if (level === "info") {
       const tagStr = this.formatTag(tag, "32");
       const levelStr = this.formatTag("INFO", "34");
-      console.info(`${ts} ${levelStr} ${tagStr} ${message}`, payload ? JSON.stringify(payload) : "");
+      console.info(`${ts} ${levelStr} ${tagStr} ${safeMessage}`, safePayload ? JSON.stringify(safePayload) : "");
     } else if (level === "warn") {
       const tagStr = this.formatTag(tag, "33");
       const levelStr = this.formatTag("WARN", "33");
-      console.warn(`${ts} ${levelStr} ${tagStr} ${message}`, payload ? JSON.stringify(payload) : "");
+      console.warn(`${ts} ${levelStr} ${tagStr} ${safeMessage}`, safePayload ? JSON.stringify(safePayload) : "");
     } else {
       const tagStr = this.formatTag(tag, "31");
       const levelStr = this.formatTag("ERROR", "41;97");
       let errDetails = "";
       if (payload instanceof Error) {
-        errDetails = `\n${payload.stack || payload.message}`;
-      } else if (payload) {
-        errDetails = ` ${JSON.stringify(payload)}`;
+        errDetails = `\n${sanitizeString(payload.stack || payload.message)}`;
+      } else if (safePayload) {
+        errDetails = ` ${JSON.stringify(safePayload)}`;
       }
-      console.error(`${ts} ${levelStr} ${tagStr} ${message}${errDetails}`);
+      console.error(`${ts} ${levelStr} ${tagStr} ${safeMessage}${errDetails}`);
     }
   }
 

@@ -57,10 +57,12 @@ services:
     image: quantpulse-cpp-engine:latest
     container_name: quantpulse-cpp-engine
     restart: always
+    ports:
+      - "9000:9000"
     environment:
-      - PORT=8080
+      - PORT=9000
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -83,6 +85,8 @@ services:
     image: quantpulse-backend:latest
     container_name: quantpulse-backend
     restart: always
+    ports:
+      - "8000:8000"
     environment:
       - NODE_ENV=production
       - PORT=8000
@@ -90,7 +94,7 @@ services:
       - MONGODB_URI=mongodb://mongodb:27017
       - MONGODB_DATABASE=quantpulse
       - REDIS_URL=redis://redis:6379
-      - CPP_ENGINE_URL=http://cpp-engine:8080
+      - CPP_ENGINE_URL=http://cpp-engine:9000
       - QUANTPULSE_ENGINE_PATH=/usr/local/bin/quantpulse_cli
       - MARKET_DATA_PROVIDER=${MARKET_DATA_PROVIDER:-simulated}
       - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY:-}

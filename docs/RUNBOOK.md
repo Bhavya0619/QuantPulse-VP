@@ -52,7 +52,7 @@ QuantPulse is an ultra-low latency quantitative trading, market microstructure a
         │   - Risk Intelligence UI      │   │   - Prometheus Telemetry      │
         └───────────────────────────────┘   └───────┬───────────────┬───────┘
                                                     │               │
-                            HTTP / IPC (Port 8080)  │               │ Wire Protocol (27017)
+                            HTTP / REST (Port 9000) │               │ Wire Protocol (27017)
                                                     ▼               ▼
                     ┌───────────────────────────────┐ ┌───────────────────────────┐
                     │   C++20 Quantitative Engine   │ │     MongoDB Timeseries    │
@@ -108,7 +108,7 @@ QuantPulse provides three purpose-built Docker Compose topologies located in `de
 - **When to use**: For public demos, production deployment, performance evaluations, and telemetry inspection.
 - **Key Characteristics**:
   - Single public entry point: Frontend + Nginx on **Port 80** (`${HTTP_PORT:-80}`). All `/api`, `/health`, and `/metrics` requests are proxied internally.
-  - Database ports (`27017`, `6379`) and C++ engine (`8080`) are **isolated** inside the private `quantpulse-internal` bridge network (never exposed to host/internet).
+  - Database ports (`27017`, `6379`) and C++ engine (`9000`) are **isolated** inside the private `quantpulse-internal` bridge network (never exposed to host/internet).
   - Enforces strict Docker resource limits (CPU quotas, memory caps) to prevent out-of-memory (OOM) host crashes.
   - Integrated healthchecks on all services with `depends_on: condition: service_healthy` to guarantee deterministic, zero-race startup order.
   - Runs Prometheus on port `9090` and Grafana on port `3000`.

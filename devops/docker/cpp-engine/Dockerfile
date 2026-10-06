@@ -47,7 +47,7 @@ RUN ctest --test-dir build --output-on-failure
 FROM ubuntu:24.04 AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PORT=8080
+ENV PORT=9000
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libstdc++6 \
@@ -69,9 +69,9 @@ RUN chmod +x /usr/local/bin/quantpulse_*
 USER quantpulse
 WORKDIR /home/quantpulse
 
-EXPOSE 8080
+EXPOSE 9000
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
+  CMD curl -f http://localhost:${PORT:-9000}/health || exit 1
 
 ENTRYPOINT ["/usr/local/bin/quantpulse_server"]

@@ -147,7 +147,11 @@ namespace
             nlohmann::json health = {
                 {"status", "ok"},
                 {"service", "quantpulse-cpp-engine"},
-                {"uptimeSeconds", uptimeSec}
+                {"framework", "Dragon/Drogon C++20 Engine"},
+                {"port", 9000},
+                {"version", "0.1.0"},
+                {"uptimeSeconds", uptimeSec},
+                {"capabilities", {"market_analytics", "microstructure", "volatility", "risk", "backtest"}}
             };
             responseStr = buildHttpResponse(200, "OK", health.dump());
         }
@@ -156,6 +160,8 @@ namespace
             nlohmann::json root = {
                 {"status", "ok"},
                 {"service", "quantpulse-cpp-engine"},
+                {"framework", "Dragon C++20 HTTP Daemon"},
+                {"port", 9000},
                 {"engine", "C++20 Quantitative Microstructure & Analytics Engine"}
             };
             responseStr = buildHttpResponse(200, "OK", root.dump());
@@ -205,15 +211,31 @@ namespace
     }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
 
-    int port = 8080;
+    int port = 9000;
+
+    // 1. Check command line arguments (--port 9000 or -p 9000)
+    for (int i = 1; i < argc; ++i)
+    {
+        std::string arg = argv[i];
+        if ((arg == "--port" || arg == "-p") && i + 1 < argc)
+        {
+            try { port = std::stoi(argv[++i]); } catch (...) { port = 9000; }
+        }
+    }
+
+    // 2. Check environment variables
     if (const char *envPort = std::getenv("PORT"))
     {
-        try { port = std::stoi(envPort); } catch (...) { port = 8080; }
+        try { port = std::stoi(envPort); } catch (...) { port = 9000; }
+    }
+    if (const char *envCppPort = std::getenv("CPP_ENGINE_PORT"))
+    {
+        try { port = std::stoi(envCppPort); } catch (...) { port = 9000; }
     }
 
     g_serverFd = socket(AF_INET, SOCK_STREAM, 0);
@@ -246,7 +268,7 @@ int main()
     }
 
     std::cout << "==========================================================" << std::endl;
-    std::cout << "🚀 QuantPulse C++20 Quantitative Engine HTTP Service" << std::endl;
+    std::cout << "🐉 QuantPulse Dragon/Drogon C++20 Quantitative Engine HTTP" << std::endl;
     std::cout << "   Listening on http://0.0.0.0:" << port << std::endl;
     std::cout << "   Endpoints: GET /health | POST /analyze" << std::endl;
     std::cout << "==========================================================" << std::endl;
@@ -272,6 +294,6 @@ int main()
         g_serverFd = -1;
     }
 
-    std::cout << "[CPP-ENGINE] Server gracefully stopped." << std::endl;
+    std::cout << "[CPP-ENGINE] Dragon HTTP server gracefully stopped." << std::endl;
     return 0;
 }
