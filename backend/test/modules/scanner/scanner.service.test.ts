@@ -9,7 +9,7 @@ describe("ScannerService", () => {
     expect(opps.marketRegime).toBe("CHOPPY_RANGEBOUND");
     expect(opps.congestionIndex).toBeGreaterThan(50);
     expect(opps.squeezes.length).toBeGreaterThan(0);
-    expect(opps.squeezes[0].historicalWinRate).toBeGreaterThan(70);
+    expect(opps.squeezes[0]!.historicalWinRate).toBeGreaterThan(70);
   });
 
   it("identifies extreme mean reversion candidates with Z-scores", () => {
@@ -24,6 +24,6 @@ describe("ScannerService", () => {
     const opps = service.getOpportunities();
     expect(opps.orderFlowImbalances.length).toBeGreaterThan(0);
     expect(opps.cointegrationPairs.length).toBeGreaterThan(0);
-    expect(opps.cointegrationPairs[0].correlation).toBeGreaterThan(0.85);
+    expect(opps.cointegrationPairs[0]!.correlation).toBeGreaterThan(0.85);
   });
 });

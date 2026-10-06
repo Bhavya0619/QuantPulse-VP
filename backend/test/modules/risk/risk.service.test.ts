@@ -17,13 +17,13 @@ describe("RiskService", () => {
     const { assets, matrix } = summary.correlationMatrix;
     expect(assets.length).toBe(matrix.length);
     for (let i = 0; i < assets.length; i++) {
-      expect(matrix[i][i]).toBe(1.0); // diagonal is 1.0
+      expect(matrix[i]![i]).toBe(1.0); // diagonal is 1.0
     }
   });
 
   it("provides automated de-risking protocol sequences", () => {
     const summary = service.getRiskSummary();
     expect(summary.deRiskingProtocols.length).toBe(4);
-    expect(summary.deRiskingProtocols[0].status).toBe("ARMED");
+    expect(summary.deRiskingProtocols[0]!.status).toBe("ARMED");
   });
 });

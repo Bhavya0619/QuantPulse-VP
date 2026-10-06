@@ -1,0 +1,54 @@
+name: QuantPulse C++ Quantitative Benchmarks
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'cpp-engine/**'
+  workflow_dispatch:
+
+jobs:
+  benchmarks:
+    name: C++ Google Benchmark Performance Suite
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install C++ Toolchain & Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            g++-13 \
+            libgtest-dev \
+            nlohmann-json3-dev
+
+      - name: Configure CMake in Release Mode
+        run: |
+          cmake -B cpp-engine/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=20 \
+            -DBENCHMARK_ENABLE_TESTING=OFF \
+            -DBENCHMARK_ENABLE_GTEST_TESTS=OFF \
+            -S cpp-engine
+
+      - name: Build Benchmark Target (quantpulse_benchmarks)
+        run: |
+          cmake --build cpp-engine/build --target quantpulse_benchmarks -j$(nproc)
+
+      - name: Execute Quantitative Microbenchmarks
+        run: |
+          ./cpp-engine/build/quantpulse_benchmarks \
+            --benchmark_format=json \
+            --benchmark_out=quantpulse_benchmarks.json \
+            --benchmark_repetitions=3 \
+            --benchmark_report_aggregates_only=true
+
+      - name: Upload Benchmark JSON Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quantpulse-benchmark-report
+          path: quantpulse_benchmarks.json
+          retention-days: 30

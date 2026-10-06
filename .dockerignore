@@ -1,0 +1,51 @@
+# Git and OS metadata
+**/.git
+**/.gitignore
+**/.vscode
+**/.idea
+**/.DS_Store
+**/*.log
+
+# Dependencies and caches
+**/node_modules
+**/node_modules/
+**/.npm
+npm-debug.log*
+
+# Build artifacts
+**/dist
+**/dist/
+**/build
+**/build/
+**/build-*
+**/build-*/
+**/CMakeFiles
+**/CMakeFiles/
+**/CMakeCache.txt
+CMakeCache.txt
+**/*.tsbuildinfo
+*.tsbuildinfo
+**/*.o
+**/*.a
+**/*.so
+**/*.exe
+
+# Environment & Secrets (NEVER COPY SECRETS)
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.cert
+
+# Test & coverage
+**/coverage
+**/coverage/
+**/.nyc_output
+**/.vitest
+
+# Documentation and temporary files
+docs/
+scratch/
+assests/
+landingpage/

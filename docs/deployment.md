@@ -1,157 +1,108 @@
-# QuantPulse Deployment & Infrastructure
+# QuantPulse Deployment & Infrastructure Guide
 
-## Status
+## Status: Active Target Architecture
 
-**Deployment Architecture — Active Target**
-
-This document defines the deployment architecture, hosting platforms, infrastructure topology, environment promotion pipelines, security policies, and observability standards for the **QuantPulse Platform**.
+This document defines the deployment architecture, hosting targets, environment promotion pipelines, containerization workflows, security policies, and rollback procedures for the **QuantPulse Platform**.
 
 ---
 
-# 1. Deployment Objectives
+# 1. Deployment Topology
 
-The QuantPulse deployment architecture is designed to provide:
-
-- **Global Edge Delivery**: High-speed, CDN-cached React 19 frontend delivery via Vercel.
-- **Scalable Application API**: Containerized Node.js REST and WebSocket services on Render.
-- **Deterministic High-Performance Computing**: Isolated C++20 quantitative engine execution.
-- **Relational & Time-Series Specialization**: PostgreSQL for relational business entities; TimescaleDB for high-volume market feeds.
-- **Low-Latency Caching**: Managed Redis for rate limiting, hot order book caches, and background jobs.
-- **Automated CI/CD**: GitHub Actions executing static analysis, C++ GoogleTest suites (594 tests), TypeScript typechecking, and automated builds on every push.
-- **Safe Environment Progression**: Strict separation across `Development`, `Staging`, and `Production`.
-
----
-
-# 2. Production Topology
-
-```text
+```
                          INTERNET
                             │
-                         HTTPS
+                         HTTPS (Port 443 / Port 80)
                             │
                             ▼
                  ┌─────────────────────┐
-                 │       Vercel        │
-                 │ React 19 + Vite     │
-                 │ Edge CDN Delivery   │
+                 │  Nginx Web Server   │
+                 │  - React 19 SPA     │
+                 │  - Reverse Proxy    │
                  └──────────┬──────────┘
-                            │ HTTPS / REST / WSS
+                            │ /api, /health, /metrics
                             ▼
                  ┌─────────────────────┐
-                 │    Render Cloud     │
-                 │ Node.js Backend API │
-                 │ Docker Container    │
+                 │ QuantPulse Backend  │
+                 │ - Node.js 22 + TS   │
+                 │ - C++ CLI Bundled   │
                  └──────┬───────┬──────┘
                         │       │
-              ┌─────────┘       └──────────┐
-              ▼                            ▼
-     ┌─────────────────┐          ┌─────────────────┐
-     │ C++20 Quant     │          │  Managed Redis  │
-     │ Engine          │          │ Hot Cache /     │
-     │ Containerized   │          │ Job Queue       │
-     └────────┬────────┘          └─────────────────┘
-              │
-              │
-       ┌──────┴──────────────────────────────┐
-       │                                     │
-       ▼                                     ▼
-   ┌────────────────────┐        ┌────────────────────┐
-   │ Managed PostgreSQL │        │ TimescaleDB Cloud  │
-   │ Prisma ORM Access  │        │ High-Volume Ticks  │
-   │ Relational State   │        │ Time-Series Data   │
-   └────────────────────┘        └────────────────────┘
+             JSON IPC   │       │ Wire Protocol
+     (quantpulse_cli)   ▼       ▼
+       ┌─────────────────┐     ┌─────────────────┐
+       │ C++20 Engine    │     │ MongoDB Cluster │
+       │ High-speed math │     │ Market Data/Bars│
+       └─────────────────┘     └────────┬────────┘
+                                        │
+                                        ▼
+                               ┌─────────────────┐
+                               │  Redis Cache    │
+                               │  Session/Queues │
+                               └─────────────────┘
 ```
 
 ---
 
-# 3. Component Deployment Specifications
+# 2. Deployment Targets
 
-## 3.1 Frontend (Vercel)
+### Option A: Docker Compose (Single Host / Bare-Metal / Cloud VM)
+- **Manifest**: `devops/compose/docker-compose.prod.yml`
+- **Helper Script**: `./devops/scripts/prod.sh`
+- **Features**:
+  - Isolated internal Docker bridge network (`quantpulse-internal`).
+  - Nginx exposed on port 80/443; MongoDB and Redis unexposed to public network.
+  - Automatic restart policies (`restart: always`).
+  - Prometheus and Grafana pre-configured.
 
-- **Platform**: Vercel (Static & Edge CDN)
-- **Framework Preset**: Vite / React
-- **Build Command**: `npm run build` (runs `tsc -b && vite build`)
-- **Output Directory**: `dist`
-- **Environment Variables**:
-    - `VITE_API_URL`: Backend API base endpoint (e.g. `https://api.quantpulse.io/api/v1`)
-    - `VITE_WS_URL`: WebSocket stream endpoint (e.g. `wss://api.quantpulse.io/stream`)
-- **Features**: Automatic preview deployments on pull requests, HTTPS by default, Brotli/Gzip compression.
-
-## 3.2 Backend Service (Render Container)
-
-- **Platform**: Render Web Service (Docker runtime)
-- **Base Image**: `node:20-alpine` (multi-stage build with TypeScript compiler)
-- **Health Check Path**: `/health` (returns HTTP 200 and system diagnostics)
-- **Environment Variables**:
-    - `PORT`: Service port (default 4000)
-    - `DATABASE_URL`: PostgreSQL connection string (Prisma)
-    - `TIMESCALE_URL`: TimescaleDB connection string
-    - `REDIS_URL`: Redis connection string
-    - `JWT_SECRET`: Authentication signing secret
-    - `NODE_ENV`: `production` | `staging` | `development`
-
-## 3.3 Quantitative Engine (C++20 Service / Library)
-
-- **Runtime**: Linux x86_64 container optimized with `-O3 -march=x86-64-v3`
-- **Compiler**: GCC 13.3+ / Clang 17+
-- **Build System**: CMake 3.28+ with Ninja generator
-- **Verification Gate**: CTest 100% pass rate across 594 unit & integration tests required before container promotion.
-
-## 3.4 Data & Storage Layer
-
-| Service            | Technology     | Provider                                       | Backup / HA Policy                              |
-| :----------------- | :------------- | :--------------------------------------------- | :---------------------------------------------- |
-| **Relational DB**  | PostgreSQL 16+ | Managed PostgreSQL (Neon / Supabase / AWS RDS) | Automated daily backups, point-in-time recovery |
-| **Time-Series DB** | TimescaleDB    | Timescale Cloud / Managed Instance             | Chunk compression, tiered storage retention     |
-| **Hot Cache**      | Redis 7+       | Managed Redis (Upstash / Redis Cloud)          | In-memory with RDB snapshotting                 |
+### Option B: Kubernetes Cluster (EKS / GKE / AKS / Bare Metal)
+- **Manifests**: `k8s/`
+- **Features**:
+  - Ingress controller with SSL termination and 50MB payload limits.
+  - Backend and Frontend deployments with 2+ replicas.
+  - StatefulSet for MongoDB with persistent storage.
+  - Liveness and Readiness probes configured against `/health/live` and `/health/ready`.
 
 ---
 
-# 4. CI/CD Pipeline (GitHub Actions)
+# 3. Environment Variables Reference
 
-Every pull request and merge to `main` executes the automated pipeline:
+| Variable | Environment | Description |
+| :--- | :--- | :--- |
+| `NODE_ENV` | `production` | Enables production optimizations and JSON structured logging |
+| `PORT` | `8000` | Backend API listening port |
+| `CORS_ORIGIN` | `https://app.quantpulse.io` | CORS whitelist domain |
+| `MONGODB_URI` | `mongodb://mongodb:27017` | MongoDB connection string |
+| `MONGODB_DATABASE` | `quantpulse` | Main database name |
+| `REDIS_URL` | `redis://redis:6379` | Redis connection URL |
+| `QUANTPULSE_ENGINE_PATH` | `/usr/local/bin/quantpulse_cli` | Path to compiled C++ quantitative binary |
+| `LOG_FORMAT` | `json` | Structured JSON log output |
 
-```text
-GitHub Push / Pull Request
-         │
-         ├──► 1. C++ Quantitative Engine Job
-         │       ├── Configure CMake + Ninja (C++20)
-         │       ├── Compile with -Wall -Wextra -Wpedantic
-         │       ├── Run GoogleTest executable (594 tests)
-         │       └── Run CTest verification suite
-         │
-         ├──► 2. Backend Job
-         │       ├── Node.js 20 environment
-         │       ├── Lint & TypeScript typecheck
-         │       ├── Run Prisma schema validation
-         │       └── Execute backend unit tests
-         │
-         └──► 3. Frontend Job
-                 ├── Node.js 20 environment
-                 ├── Run TypeScript typecheck (tsc --noEmit)
-                 ├── Vite production build verification
-                 └── Trigger Vercel preview deployment
+---
+
+# 4. Rollback Procedures
+
+### Docker Compose Rollback:
+```bash
+# 1. Rollback to previous Docker image tag
+docker pull ghcr.io/your-org/quantpulse-backend:sha-previous
+docker pull ghcr.io/your-org/quantpulse-frontend:sha-previous
+
+# 2. Restart services with previous image
+docker compose -f devops/compose/docker-compose.prod.yml up -d
+
+# 3. Verify health
+./devops/scripts/healthcheck.sh
 ```
 
----
+### Kubernetes Rollback:
+```bash
+# View rollout history
+kubectl rollout history deployment/backend -n quantpulse
 
-# 5. Environment Strategy
+# Undo previous rollout
+kubectl rollout undo deployment/backend -n quantpulse
+kubectl rollout undo deployment/frontend -n quantpulse
 
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│ DEVELOPMENT (Local)                                                    │
-│ Docker Compose: Node.js API + C++ Engine + Local Postgres + Redis     │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Automated PR Validation
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│ STAGING (Preview)                                                      │
-│ Vercel Preview Deployments + Render Staging Service + Staging DBs      │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Merge to main & Tagged Release
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│ PRODUCTION                                                             │
-│ Vercel Production + Render High-Availability Container + Managed DBs   │
-└────────────────────────────────────────────────────────────────────────┘
+# Verify status
+kubectl rollout status deployment/backend -n quantpulse
 ```

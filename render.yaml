@@ -1,0 +1,85 @@
+# ==============================================================================
+# QuantPulse Platform: Render Infrastructure-as-Code Blueprint
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. C++20 Quantitative Analytics Engine (Private Service)
+  # ----------------------------------------------------------------------------
+  - type: pserv
+    name: quantpulse-cpp-engine
+    runtime: docker
+    dockerfilePath: devops/docker/cpp-engine/Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: free
+    envVars:
+      - key: PORT
+        value: 8080
+
+  # ----------------------------------------------------------------------------
+  # 2. Node.js + TypeScript Backend API (Web Service)
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: quantpulse-backend
+    runtime: docker
+    dockerfilePath: devops/docker/backend/Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: free
+    healthCheckPath: /health/live
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: LOG_FORMAT
+        value: json
+      - key: MONGODB_URI
+        sync: false # Set in Render Dashboard with MongoDB Atlas Connection String
+      - key: MONGODB_DATABASE
+        value: quantpulse
+      - key: REDIS_URL
+        sync: false # Set in Render Dashboard with Redis URL (e.g. Upstash)
+      - key: CPP_ENGINE_URL
+        fromService:
+          type: pserv
+          name: quantpulse-cpp-engine
+          property: host
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: MARKET_DATA_PROVIDER
+        value: simulated
+      - key: ALPHA_VANTAGE_API_KEY
+        sync: false
+      - key: BINANCE_API_KEY
+        sync: false
+      - key: BINANCE_API_SECRET
+        sync: false
+
+  # ----------------------------------------------------------------------------
+  # 3. React + Vite Frontend (Static Web Service)
+  # ----------------------------------------------------------------------------
+  - type: static
+    name: quantpulse-frontend
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    pullRequestPreviewsEnabled: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: quantpulse-backend
+          property: url
+      - key: VITE_BACKEND_URL
+        fromService:
+          type: web
+          name: quantpulse-backend
+          property: url
+      - key: VITE_DEFAULT_SYMBOL
+        value: RELIANCE

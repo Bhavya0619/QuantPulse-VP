@@ -6,6 +6,7 @@ import {
     connectMongoDB,
     disconnectMongoDB,
     ensureMongoIndexes,
+    ensureDefaultDatasetSeeded,
 } from "./infrastructure/database/mongodb.js";
 
 const startServer = async (): Promise<void> => {
@@ -13,6 +14,8 @@ const startServer = async (): Promise<void> => {
         await connectMongoDB();
 
         await ensureMongoIndexes();
+
+        await ensureDefaultDatasetSeeded();
 
         const app = createApp();
 

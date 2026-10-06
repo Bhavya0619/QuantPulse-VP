@@ -111,6 +111,24 @@ target_link_libraries(
 )
 
 # ----------------------------
+# HTTP Network Server Adapter
+# ----------------------------
+
+find_package(Threads REQUIRED)
+
+add_executable(
+    quantpulse_server
+    src/adapter/QuantPulseHttpServer.cpp
+)
+
+target_link_libraries(
+    quantpulse_server
+    PRIVATE
+        quantpulse_core
+        Threads::Threads
+)
+
+# ----------------------------
 # Testing
 # ----------------------------
 

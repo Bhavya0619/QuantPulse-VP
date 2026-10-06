@@ -1,15 +1,55 @@
+import { metricsRegistry } from "../metrics/metrics.js";
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 interface LogPayload {
   [key: string]: unknown;
 }
 
+const SENSITIVE_KEYS = new Set([
+  "password",
+  "secret",
+  "apikey",
+  "api_key",
+  "token",
+  "jwt",
+  "authorization",
+  "auth",
+  "cookie",
+]);
+
+function sanitizeValue(key: string, value: unknown): unknown {
+  if (typeof key === "string" && SENSITIVE_KEYS.has(key.toLowerCase())) {
+    return "[REDACTED]";
+  }
+  if (typeof value === "object" && value !== null) {
+    if (Array.isArray(value)) {
+      return value.map((item) => (typeof item === "object" && item !== null ? sanitizeObject(item as Record<string, unknown>) : item));
+    }
+    return sanitizeObject(value as Record<string, unknown>);
+  }
+  return value;
+}
+
+function sanitizeObject(obj: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    sanitized[k] = sanitizeValue(k, v);
+  }
+  return sanitized;
+}
+
 class Logger {
+  private isJsonMode(): boolean {
+    return process.env.LOG_FORMAT === "json" || (process.env.NODE_ENV === "production" && process.env.LOG_FORMAT !== "pretty");
+  }
+
   private isColorSupported(): boolean {
     return (
       typeof process !== "undefined" &&
       process.stdout &&
-      process.stdout.isTTY !== false
+      process.stdout.isTTY !== false &&
+      !this.isJsonMode()
     );
   }
 
@@ -26,44 +66,100 @@ class Logger {
     return this.colorize(`[${tag}]`, color);
   }
 
-  public debug(tag: string, message: string, payload?: LogPayload): void {
+  private emit(level: LogLevel, tag: string, message: string, payload?: unknown): void {
     if (process.env.NODE_ENV === "test" && !process.env.DEBUG) return;
+
+    if (this.isJsonMode()) {
+      const logEntry: Record<string, unknown> = {
+        timestamp: this.formatTimestamp(),
+        level,
+        service: "quantpulse-backend",
+        tag,
+        message,
+      };
+
+      if (payload) {
+        if (payload instanceof Error) {
+          logEntry.error = {
+            name: payload.name,
+            message: payload.message,
+            stack: payload.stack,
+          };
+        } else if (typeof payload === "object") {
+          logEntry.payload = sanitizeObject(payload as Record<string, unknown>);
+        } else {
+          logEntry.payload = payload;
+        }
+      }
+
+      const jsonStr = JSON.stringify(logEntry);
+      if (level === "error") {
+        console.error(jsonStr);
+      } else if (level === "warn") {
+        console.warn(jsonStr);
+      } else if (level === "debug") {
+        console.debug(jsonStr);
+      } else {
+        console.info(jsonStr);
+      }
+      return;
+    }
+
+    // Pretty Terminal Mode
     const ts = this.colorize(this.formatTimestamp(), "90");
-    const tagStr = this.formatTag(tag, "36"); // Cyan
-    const levelStr = this.formatTag("DEBUG", "35"); // Magenta
-    console.debug(`${ts} ${levelStr} ${tagStr} ${message}`, payload ? JSON.stringify(payload) : "");
+    if (level === "debug") {
+      const tagStr = this.formatTag(tag, "36");
+      const levelStr = this.formatTag("DEBUG", "35");
+      console.debug(`${ts} ${levelStr} ${tagStr} ${message}`, payload ? JSON.stringify(payload) : "");
+    } else if (level === "info") {
+      const tagStr = this.formatTag(tag, "32");
+      const levelStr = this.formatTag("INFO", "34");
+      console.info(`${ts} ${levelStr} ${tagStr} ${message}`, payload ? JSON.stringify(payload) : "");
+    } else if (level === "warn") {
+      const tagStr = this.formatTag(tag, "33");
+      const levelStr = this.formatTag("WARN", "33");
+      console.warn(`${ts} ${levelStr} ${tagStr} ${message}`, payload ? JSON.stringify(payload) : "");
+    } else {
+      const tagStr = this.formatTag(tag, "31");
+      const levelStr = this.formatTag("ERROR", "41;97");
+      let errDetails = "";
+      if (payload instanceof Error) {
+        errDetails = `\n${payload.stack || payload.message}`;
+      } else if (payload) {
+        errDetails = ` ${JSON.stringify(payload)}`;
+      }
+      console.error(`${ts} ${levelStr} ${tagStr} ${message}${errDetails}`);
+    }
+  }
+
+  public debug(tag: string, message: string, payload?: LogPayload): void {
+    this.emit("debug", tag, message, payload);
   }
 
   public info(tag: string, message: string, payload?: LogPayload): void {
-    if (process.env.NODE_ENV === "test" && !process.env.DEBUG) return;
-    const ts = this.colorize(this.formatTimestamp(), "90");
-    const tagStr = this.formatTag(tag, "32"); // Green
-    const levelStr = this.formatTag("INFO", "34"); // Blue
-    console.info(`${ts} ${levelStr} ${tagStr} ${message}`, payload ? JSON.stringify(payload) : "");
+    this.emit("info", tag, message, payload);
   }
 
   public warn(tag: string, message: string, payload?: LogPayload): void {
-    const ts = this.colorize(this.formatTimestamp(), "90");
-    const tagStr = this.formatTag(tag, "33"); // Yellow
-    const levelStr = this.formatTag("WARN", "33"); // Yellow
-    console.warn(`${ts} ${levelStr} ${tagStr} ${message}`, payload ? JSON.stringify(payload) : "");
+    this.emit("warn", tag, message, payload);
   }
 
   public error(tag: string, message: string, errorOrPayload?: unknown): void {
-    const ts = this.colorize(this.formatTimestamp(), "90");
-    const tagStr = this.formatTag(tag, "31"); // Red
-    const levelStr = this.formatTag("ERROR", "41;97"); // White on Red
-    let errDetails = "";
-    if (errorOrPayload instanceof Error) {
-      errDetails = `\n${errorOrPayload.stack || errorOrPayload.message}`;
-    } else if (errorOrPayload) {
-      errDetails = ` ${JSON.stringify(errorOrPayload)}`;
-    }
-    console.error(`${ts} ${levelStr} ${tagStr} ${message}${errDetails}`);
+    this.emit("error", tag, message, errorOrPayload);
   }
 
   // HTTP Request Logger
   public httpRequest(method: string, path: string, query?: Record<string, unknown>, bodySummary?: string): void {
+    metricsRegistry.incActiveRequests();
+    if (this.isJsonMode()) {
+      this.emit("info", "HTTP:REQ", `${method} ${path}`, {
+        method,
+        path,
+        query: query ? sanitizeObject(query) : undefined,
+        bodySummary,
+      });
+      return;
+    }
     if (process.env.NODE_ENV === "test" && !process.env.DEBUG) return;
     const ts = this.colorize(this.formatTimestamp(), "90");
     const tagStr = this.formatTag("HTTP:REQ", "35");
@@ -75,6 +171,18 @@ class Logger {
 
   // HTTP Response Logger
   public httpResponse(method: string, path: string, status: number, durationMs: number, bytesSent?: number): void {
+    metricsRegistry.decActiveRequests();
+    metricsRegistry.recordHttpRequest(method, path, status, durationMs);
+    if (this.isJsonMode()) {
+      this.emit("info", "HTTP:RES", `${method} ${path} -> ${status} (${durationMs.toFixed(1)}ms)`, {
+        method,
+        path,
+        statusCode: status,
+        durationMs,
+        bytesSent,
+      });
+      return;
+    }
     if (process.env.NODE_ENV === "test" && !process.env.DEBUG) return;
     const ts = this.colorize(this.formatTimestamp(), "90");
     const tagStr = this.formatTag("HTTP:RES", "32");
@@ -87,6 +195,10 @@ class Logger {
 
   // C++ Engine Logger
   public cppRequest(command: string, details: { symbol?: string; barCount?: number; path?: string }): void {
+    if (this.isJsonMode()) {
+      this.emit("info", "CPP-ENGINE:REQ", `Executing [quantpulse_cli ${command}]`, details);
+      return;
+    }
     if (process.env.NODE_ENV === "test" && !process.env.DEBUG) return;
     const ts = this.colorize(this.formatTimestamp(), "90");
     const tagStr = this.formatTag("CPP-ENGINE:REQ", "36;1");
@@ -97,6 +209,15 @@ class Logger {
   }
 
   public cppResponse(command: string, durationMs: number, details: { symbol?: string; bytesReceived?: number; observationCount?: number }): void {
+    metricsRegistry.recordCppExecution(command, "success", durationMs);
+    if (this.isJsonMode()) {
+      this.emit("info", "CPP-ENGINE:RES", `Completed [${command}] in ${durationMs.toFixed(2)}ms`, {
+        command,
+        durationMs,
+        ...details,
+      });
+      return;
+    }
     if (process.env.NODE_ENV === "test" && !process.env.DEBUG) return;
     const ts = this.colorize(this.formatTimestamp(), "90");
     const tagStr = this.formatTag("CPP-ENGINE:RES", "32;1");
@@ -107,6 +228,15 @@ class Logger {
   }
 
   public cppError(command: string, error: unknown, durationMs?: number): void {
+    metricsRegistry.recordCppExecution(command, "error", durationMs ?? 0);
+    if (this.isJsonMode()) {
+      this.emit("error", "CPP-ENGINE:ERR", `Failed [${command}]`, {
+        command,
+        durationMs,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
     const ts = this.colorize(this.formatTimestamp(), "90");
     const tagStr = this.formatTag("CPP-ENGINE:ERR", "31;1");
     const durationStr = durationMs !== undefined ? ` after ${durationMs.toFixed(2)}ms` : "";

@@ -1,0 +1,86 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: quantpulse-mongodb-dev
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=quantpulse
+    volumes:
+      - mongodb_dev_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quantpulse-network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: quantpulse-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quantpulse-network
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: devops/docker/backend/Dockerfile
+    container_name: quantpulse-backend-dev
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=development
+      - PORT=8000
+      - CORS_ORIGIN=http://localhost:5173
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DATABASE=quantpulse
+      - REDIS_URL=redis://redis:6379
+      - QUANTPULSE_ENGINE_PATH=/usr/local/bin/quantpulse_cli
+      - MARKET_DATA_PROVIDER=simulated
+      - LOG_FORMAT=pretty
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - quantpulse-network
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: devops/docker/frontend/Dockerfile
+      args:
+        - VITE_API_BASE_URL=http://localhost:8000
+        - VITE_BACKEND_URL=http://localhost:8000
+    container_name: quantpulse-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - quantpulse-network
+
+volumes:
+  mongodb_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+
+networks:
+  quantpulse-network:
+    driver: bridge

@@ -13,6 +13,8 @@ import { createScannerRoutes } from "./modules/scanner/scanner.routes.js";
 import { createRiskRoutes } from "./modules/risk/risk.routes.js";
 import { createBacktestingRoutes } from "./modules/backtesting/backtesting.routes.js";
 import { createLiveMarketRoutes } from "./modules/live-market/live-market.routes.js";
+import { createHealthRoutes } from "./modules/health/health.routes.js";
+import { HealthController } from "./modules/health/health.controller.js";
 
 import { errorHandler } from "./shared/errors/error-handler.js";
 import { httpLoggerMiddleware } from "./shared/logger/http-logger.middleware.js";
@@ -33,12 +35,9 @@ const createApp = () => {
     });
   });
 
-  app.get("/health", (_req, res) => {
-    res.status(200).json({
-      status: "ok",
-      service: "quantpulse-backend",
-    });
-  });
+  // Health and Observability
+  app.use("/health", createHealthRoutes());
+  app.get("/metrics", (req, res) => HealthController.getMetrics(req, res));
 
   app.use("/api/market", marketRoutes);
   app.use("/api/datasets", createDatasetRoutes());

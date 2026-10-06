@@ -73,4 +73,28 @@ export class AnalyticsController {
       throw error;
     }
   };
+
+  analyzeBars = async (req: Request, res: Response): Promise<void> => {
+    const { symbol, bars } = req.body;
+    if (!symbol || typeof symbol !== "string" || !Array.isArray(bars) || bars.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: "Valid symbol and non-empty bars array are required",
+      });
+      return;
+    }
+
+    try {
+      const data = await this.service.analyzeBars(symbol, bars);
+      res.status(200).json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to analyze bars",
+      });
+    }
+  };
 }

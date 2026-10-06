@@ -5,12 +5,17 @@ import type { AnalyticsRepository } from "../../infrastructure/database/reposito
 
 import type { DatasetRepository } from "../../infrastructure/database/repositories/DatasetRepository.js";
 
-import type { MarketDataRepository } from "../../infrastructure/database/repositories/MarketDataRepository.js";
+import type {
+  MarketDataRepository,
+  MarketBar,
+} from "../../infrastructure/database/repositories/MarketDataRepository.js";
 
 import {
   runMarketAnalysis,
+  enrichMarketAnalytics,
   type MarketAnalyticsResult,
 } from "../../infrastructure/cpp-engine/QuantEngineClient.js";
+import { SAMPLE_DATASET, SAMPLE_BARS } from "../../infrastructure/database/sample-data.js";
 
 export class AnalyticsService {
   constructor(
@@ -23,6 +28,9 @@ export class AnalyticsService {
     const dataset = await this.datasetRepository.findById(datasetId);
 
     if (!dataset) {
+      if (datasetId === "sample" || datasetId === "default" || datasetId === SAMPLE_DATASET.id) {
+        return runMarketAnalysis(SAMPLE_DATASET.symbol, SAMPLE_BARS);
+      }
       throw new AppError(404, "Dataset not found");
     }
 
@@ -36,6 +44,10 @@ export class AnalyticsService {
     }
 
     return runMarketAnalysis(dataset.symbol, bars);
+  }
+
+  async analyzeBars(symbol: string, bars: MarketBar[]): Promise<MarketAnalyticsResult> {
+    return runMarketAnalysis(symbol, bars);
   }
 
   async analyzeMarket(datasetId: string): Promise<MarketAnalyticsResult> {

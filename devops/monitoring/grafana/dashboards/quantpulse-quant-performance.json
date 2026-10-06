@@ -1,0 +1,59 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 200,
+      "title": "Quantitative Analytics Microstructure Performance",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 201,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Market Data Analytics & Volatility Latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(quantpulse_cpp_execution_duration_seconds_sum{command=\"analyze-json\"}[1m]) / rate(quantpulse_cpp_execution_duration_seconds_count{command=\"analyze-json\"}[1m])",
+          "legendFormat": "analyze-json",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "short" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 202,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": false } },
+      "title": "Active In-Flight Requests",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "quantpulse_active_http_requests",
+          "legendFormat": "In-Flight",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["quantpulse", "performance", "quant"],
+  "time": { "from": "now-30m", "to": "now" },
+  "title": "QuantPulse Quant Performance",
+  "uid": "quantpulse-quant-performance"
+}
