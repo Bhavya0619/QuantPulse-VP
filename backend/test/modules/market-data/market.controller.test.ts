@@ -89,4 +89,20 @@ describe("analyzeMarket", () => {
             error: "engine failed",
         });
     });
+
+    it("rejects path traversal and non-csv file parameters", async () => {
+        const response = createResponse();
+
+        await analyzeMarket(
+            { query: { file: "../../etc/passwd" } } as unknown as Request,
+            response,
+        );
+
+        expect(response.status).toHaveBeenCalledWith(400);
+        expect(response.json).toHaveBeenCalledWith({
+            success: false,
+            error: "Invalid file name. Only .csv market data files are permitted.",
+        });
+        expect(analyzeMarketDataMock).not.toHaveBeenCalled();
+    });
 });

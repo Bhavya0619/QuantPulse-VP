@@ -171,16 +171,26 @@ export async function checkCppEngineHealth(): Promise<{ status: "available" | "m
   }
 }
 
-function resolveFilePath(filePath: string): string | null {
-  const candidates = [
-    filePath,
-    path.resolve(process.cwd(), filePath),
-    path.resolve(process.cwd(), "..", filePath),
-    path.resolve(process.cwd(), "data", "samples", path.basename(filePath)),
-    path.resolve(process.cwd(), "..", "data", "samples", path.basename(filePath)),
-  ];
+const TRUSTED_SAMPLE_DIRS = [
+  path.resolve(process.cwd(), "data", "samples"),
+  path.resolve(process.cwd(), "..", "data", "samples"),
+];
 
-  for (const candidate of candidates) {
+function resolveFilePath(filePath: string): string | null {
+  // Prevent path traversal: only extract basename and ensure it's a CSV file
+  const fileName = path.basename(filePath);
+  if (!fileName || !fileName.toLowerCase().endsWith(".csv") || fileName.includes("..")) {
+    return null;
+  }
+
+  for (const baseDir of TRUSTED_SAMPLE_DIRS) {
+    const candidate = path.resolve(baseDir, fileName);
+    // Strict containment check: candidate must be directly inside baseDir
+    const relative = path.relative(baseDir, candidate);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      continue;
+    }
+
     try {
       if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
         return candidate;
