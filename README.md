@@ -114,5 +114,7 @@ Prometheus and Grafana configurations are pre-packaged under `devops/monitoring/
 - [Deployment & Rollback Strategy](docs/deployment.md)
 - [Operational Runbook & Troubleshooting](docs/RUNBOOK.md)
 - [System Architecture Specification](docs/architecture.md)
-- [Quantitative Mathematical Models](docs/quant-model.md)
+- [Quantitative Algorithms, Mathematical Models & Viva Q&A Guide](docs/ALGORITHMS_GUIDE.md)
+- [Quantitative Mathematical Models Specification](docs/quant-model.md)
+- [Quantitative Concepts & Architectural Formulas](docs/concepts.md)
 - [Benchmarking Guide](docs/benchmarking.md)

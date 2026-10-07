@@ -741,6 +741,328 @@ Synthesize market microstructure conditions (relative spread, multi-level depth 
 
 ---
 
+## 2.26 Order Flow Imbalance (OFI)
+
+#### Purpose
+
+Measure net buy-side vs. sell-side aggressive volume changes at the top of the limit order book across consecutive events to predict short-term price movements.
+
+#### Input
+
+Top-of-book market states across consecutive events $t-1$ and $t$:
+- Best bid price $P_b(t)$ and size $Q_b(t)$
+- Best ask price $P_a(t)$ and size $Q_a(t)$
+
+#### Output
+
+A signed numerical scalar $\text{OFI}(t)$ indicating net order flow pressure.
+
+#### Formula
+
+```text
+OFI(t) = e_b(t) + e_a(t)
+```
+
+where bid contribution $e_b(t)$ is:
+
+```text
+e_b(t) = Q_b(t)               if P_b(t) > P_b(t-1)
+e_b(t) = Q_b(t) - Q_b(t-1)   if P_b(t) = P_b(t-1)
+e_b(t) = -Q_b(t-1)            if P_b(t) < P_b(t-1)
+```
+
+and ask contribution $e_a(t)$ is:
+
+```text
+e_a(t) = -Q_a(t)              if P_a(t) < P_a(t-1)
+e_a(t) = -(Q_a(t) - Q_a(t-1)) if P_a(t) = P_a(t-1)
+e_a(t) = Q_a(t-1)             if P_a(t) > P_a(t-1)
+```
+
+#### Computational Complexity
+
+- Time: $O(1)$ per event update
+- Space: $O(1)$
+
+#### Implementation
+
+`quantpulse::domain::order_flow::OrderFlowEngine`
+
+---
+
+## 2.27 Technical & Momentum Indicators
+
+#### Purpose
+
+Provide classical trend, momentum, and mean-reversion filters as quantitative features for alpha generation.
+
+#### Implemented Indicators
+
+1. **Simple Moving Average (SMA)**:
+   ```text
+   SMA_k(t) = (1 / k) * Σ P_(t-i)   for i = 0 to k-1
+   ```
+2. **Exponential Moving Average (EMA)**:
+   ```text
+   EMA_k(t) = α * P_t + (1 - α) * EMA_k(t-1), where α = 2 / (k + 1)
+   ```
+3. **Relative Strength Index (RSI - Wilder's Smoothing)**:
+   ```text
+   RSI = 100 - (100 / (1 + RS)), where RS = SmoothedAverageGain / SmoothedAverageLoss
+   ```
+4. **Price Momentum**:
+   ```text
+   Momentum_k(t) = P_t - P_(t-k)
+   ```
+
+#### Computational Complexity
+
+- Time: $O(N)$
+- Space: $O(1)$
+
+#### Implementation
+
+`quantpulse::domain::indicators::IndicatorEngine`
+
+---
+
+## 2.28 Multi-Factor Signal Engine
+
+#### Purpose
+
+Generate an ensemble directional trading signal bounded in $[-1.0, +1.0]$ by synthesizing momentum, risk-adjusted performance, and market microstructure conditions.
+
+#### Input
+
+A quantitative feature vector containing return momentum, downside risk metrics, and order book imbalance.
+
+#### Formula
+
+```text
+Signal = w_momentum * S_momentum + w_risk * S_risk + w_microstructure * S_microstructure
+```
+
+Subject to $\sum w_i = 1.0$ (default weights: $w_m = 0.30$, $w_r = 0.30$, $w_\mu = 0.40$).
+
+#### Signal Mapping
+
+- $\text{Signal} \ge +0.35 \implies$ `BUY`
+- $\text{Signal} \le -0.35 \implies$ `SELL`
+- $-0.35 < \text{Signal} < +0.35 \implies$ `HOLD` / `NEUTRAL`
+
+#### Implementation
+
+`quantpulse::domain::signals::SignalEngine`
+
+---
+
+## 2.29 Volatility Squeeze Model (Carter Compression)
+
+#### Purpose
+
+Identify explosive directional breakout opportunities by detecting periods of abnormal volatility compression where Bollinger Bands contract inside Keltner Channels.
+
+#### Formula
+
+1. Bollinger Bands $(20, 2\sigma)$: $\text{Upper}_{\text{BB}}, \text{Lower}_{\text{BB}}$
+2. Keltner Channels $(20, 1.5 \text{ ATR})$: $\text{Upper}_{\text{KC}}, \text{Lower}_{\text{KC}}$
+
+```text
+InSqueeze = (Upper_BB < Upper_KC) and (Lower_BB > Lower_KC)
+```
+
+- `IN_SQUEEZE`: Volatility compression (energy storage).
+- `FIRING_LONG` / `FIRING_SHORT`: Momentum breakout as Bollinger Bands expand outside Keltner Channels.
+
+#### Implementation
+
+`quantpulse::domain::volatility::VolatilityEngine`, `IndicatorEngine`, and `ScannerService`.
+
+---
+
+## 2.30 Statistical Arbitrage & Cointegration
+
+#### Purpose
+
+Identify stationary, mean-reverting spread dynamics between economically linked asset pairs for market-neutral pairs trading.
+
+#### Formula (Engle-Granger Two-Step)
+
+1. Cointegrating Ordinary Least Squares (OLS) regression:
+   ```text
+   Y_t = α + β * X_t + ε_t
+   ```
+2. Spread calculation:
+   ```text
+   Spread_t = Y_t - β * X_t
+   ```
+3. Stationarity verification via Augmented Dickey-Fuller (ADF) test ($p\text{-value} < 0.05$).
+4. Mean reversion half-life estimation via Ornstein-Uhlenbeck process:
+   ```text
+   Δ Spread_t = -θ * Spread_(t-1) + η_t  ==>  HalfLife = ln(2) / θ
+   ```
+
+#### Implementation
+
+`quantpulse::domain::research::ResearchEngine`
+
+---
+
+## 2.31 Position Sizing & Kelly Criterion
+
+#### Purpose
+
+Calculate the mathematically optimal capital allocation fraction to maximize long-term compound growth while avoiding ruin.
+
+#### Formula
+
+Given win probability $p$, loss probability $q = 1 - p$, and payoff ratio $b$:
+
+```text
+f* = (p * b - q) / b
+```
+
+QuantPulse implements **Fractional Kelly (Half-Kelly)**:
+
+```text
+f_half = 0.5 * f*
+```
+
+Provides $75\%$ of full Kelly growth rate with a $50\%$ reduction in portfolio variance and drawdown risk.
+
+#### Implementation
+
+`quantpulse::domain::sizing::PositionSizingEngine`
+
+---
+
+## 2.32 Transaction Cost & Slippage Modeling
+
+#### Purpose
+
+Estimate realistic execution drag, including fixed exchange fees, broker commissions, and quadratic market impact from aggressive order sizes.
+
+#### Formula
+
+```text
+TotalCost = Fee_fixed + Rate_commission * V + γ * (Q / ADV)^2 * P
+```
+
+Where:
+- $V = P \times Q$ (Notional trade value)
+- $\text{ADV}$ = Average Daily Volume
+- $\gamma$ = Temporary market impact coefficient
+
+#### Implementation
+
+`quantpulse::domain::transaction_cost::TransactionCostEngine`
+
+---
+
+## 2.33 Portfolio Multi-Asset Analytics & Optimization
+
+#### Purpose
+
+Calculate combined portfolio return, aggregate covariance matrix, and portfolio volatility across multi-asset allocations.
+
+#### Formula
+
+- Portfolio Return:
+  ```text
+  R_p = w^T * R = Σ (w_i * R_i)
+  ```
+- Portfolio Variance:
+  ```text
+  σ_p^2 = w^T * Σ * w = Σ Σ (w_i * w_j * Cov(R_i, R_j))
+  ```
+- Portfolio Volatility:
+  ```text
+  σ_p = sqrt(σ_p^2)
+  ```
+- Diversification Ratio:
+  ```text
+  DR = (Σ w_i * σ_i) / σ_p
+  ```
+
+#### Implementation
+
+`quantpulse::domain::portfolio::PortfolioEngine`
+
+---
+
+## 2.34 Backtesting Engine & Event Simulation
+
+#### Purpose
+
+Simulate historical execution of trading strategies without lookahead bias, tracking trade-by-trade equity curves, win rate %, profit factor, and maximum drawdown under realistic transaction costs.
+
+#### Simulation Pipeline
+
+1. Ingest chronologically sorted market observations $t \in [1, N]$.
+2. Signal generation using only information available up to bar $t$.
+3. Position execution on open of bar $t+1$ with simulated slippage.
+4. Continuous update of equity curve, peak capital, and unrealized PnL.
+
+#### Implementation
+
+`quantpulse::domain::backtest::BacktestEngine` and `quantpulse::application::backtesting::BacktestingApplication`
+
+---
+
+## 2.35 Amihud Illiquidity Ratio (Price Impact)
+
+#### Purpose
+
+Quantify price response per unit of currency traded as an empirical proxy for market illiquidity and Kyle's lambda.
+
+#### Formula
+
+```text
+ILLIQ = (1 / N) * Σ (|R_t| / (Volume_t * P_t))
+```
+
+#### Implementation
+
+`quantpulse::domain::liquidity::LiquidityEngine`
+
+---
+
+## 2.36 Limit Order Book Matching (Price-Time Priority)
+
+#### Purpose
+
+Deterministic continuous double auction matching engine maintaining strict Price-Time (FIFO) queue priority for resting limit orders and executing market orders.
+
+#### Invariants
+
+- Best bid price < Best ask price (no crossed book state).
+- Orders at the same price level execute in exact arrival timestamp sequence.
+
+#### Implementation
+
+`quantpulse::domain::matching::MatchingEngine` and `quantpulse::domain::order_book::OrderBookEngine`
+
+---
+
+## 2.37 Latency & Execution Microstructure Tracking
+
+#### Purpose
+
+Monitor hardware timestamp differences between market data receipt, feature calculation, signal firing, and order dispatch to quantify tick-to-trade latency profiles.
+
+#### Metrics
+
+```text
+Δt_tick_to_signal = t_signal - t_market_data
+Δt_execution      = t_fill - t_dispatch
+```
+
+#### Implementation
+
+`quantpulse::domain::latency::LatencyEngine`
+
+---
+
 # 3. Model Development Standards
 
 As QuantPulse evolves, each production quantitative model should document:
