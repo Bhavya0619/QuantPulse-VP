@@ -218,7 +218,13 @@ int main(int argc, char *argv[])
 
     int port = 9000;
 
-    // 1. Check command line arguments (--port 9000 or -p 9000)
+    // 1. Check environment variable CPP_ENGINE_PORT
+    if (const char *envCppPort = std::getenv("CPP_ENGINE_PORT"))
+    {
+        try { port = std::stoi(envCppPort); } catch (...) { port = 9000; }
+    }
+
+    // 2. Check command line arguments (--port 9000 or -p 9000) (highest precedence)
     for (int i = 1; i < argc; ++i)
     {
         std::string arg = argv[i];
@@ -226,16 +232,6 @@ int main(int argc, char *argv[])
         {
             try { port = std::stoi(argv[++i]); } catch (...) { port = 9000; }
         }
-    }
-
-    // 2. Check environment variables
-    if (const char *envPort = std::getenv("PORT"))
-    {
-        try { port = std::stoi(envPort); } catch (...) { port = 9000; }
-    }
-    if (const char *envCppPort = std::getenv("CPP_ENGINE_PORT"))
-    {
-        try { port = std::stoi(envCppPort); } catch (...) { port = 9000; }
     }
 
     g_serverFd = socket(AF_INET, SOCK_STREAM, 0);

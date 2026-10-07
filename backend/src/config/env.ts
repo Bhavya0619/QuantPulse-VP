@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import "dotenv/config";
 
 const parsePort = (value: string | undefined): number => {
@@ -18,13 +19,21 @@ export const config = {
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
 
   cppEnginePath:
-    process.env.QUANTPULSE_ENGINE_PATH ??
-    (process.platform === "win32"
+    process.env.QUANTPULSE_ENGINE_PATH ||
+    (fs.existsSync("/usr/local/bin/quantpulse_cli")
+      ? "/usr/local/bin/quantpulse_cli"
+      : fs.existsSync("../cpp-engine/build/quantpulse_cli")
+      ? "../cpp-engine/build/quantpulse_cli"
+      : process.platform === "win32"
       ? "../cpp-engine/build-release/Release/quantpulse_cli.exe"
       : "../cpp-engine/build-release/quantpulse_cli"),
 
   cppEngineUrl:
     process.env.NODE_ENV === "test" || process.env.VITEST
+      ? undefined
+      : process.env.CPP_ENGINE_URL === "disabled" ||
+        process.env.CPP_ENGINE_URL === "none" ||
+        process.env.CPP_ENGINE_URL === "off"
       ? undefined
       : process.env.CPP_ENGINE_URL || "http://127.0.0.1:9000",
 
