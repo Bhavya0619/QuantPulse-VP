@@ -1,5 +1,5 @@
 # ==============================================================================
-# QuantPulse Production All-in-One Multi-Stage Dockerfile (Backend + C++ Engine)
+# QuantPulse Production All-in-One Multi-Stage Dockerfile (Root Entrypoint)
 # Builds Native C++ Engine (Server + CLI) + Node.js Backend API
 # ==============================================================================
 
