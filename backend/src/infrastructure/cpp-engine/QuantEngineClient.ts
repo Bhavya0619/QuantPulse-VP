@@ -199,6 +199,8 @@ export async function checkCppEngineHealth(): Promise<{
 const TRUSTED_SAMPLE_DIRS = [
   path.resolve(process.cwd(), "data", "samples"),
   path.resolve(process.cwd(), "..", "data", "samples"),
+  path.resolve(process.cwd(), "data", "processed", "market"),
+  path.resolve(process.cwd(), "..", "data", "processed", "market"),
 ];
 
 function resolveFilePath(filePath: string): string | null {
